@@ -24,6 +24,7 @@ pygame.display.update()
 registers = {}
 memory = [0] * 4096
 display = [0] * 64 * 32
+keys = {}
 
 stack = []
 
@@ -38,15 +39,16 @@ def printh(x, y=None):
 
 def load_rom():
     # input = open('chip8pic.ch8', 'rb').read()
-    # input = open('pong.rom', 'rb').read()
+    input = open('pong.rom', 'rb').read()
     # input = open('c8_test.c8', 'rb').read()
-    #input = open('test_opcode.ch8', 'rb').read()
+    # input = open('test_opcode.ch8', 'rb').read()
     #input = open('zd.ch8', 'rb').read()
     #input = open('tetris.rom', 'rb').read()
-    input = open('invaders.rom', 'rb').read()
+    # input = open('invaders.rom', 'rb').read()
     # input = open("breakout.rom", "rb").read()
     # input = open('ibmlogo.ch8', 'rb').read()
     # input = open('ibmlogo.ch8', 'rb').read()
+    # input = open('random_number_test.ch8', 'rb').read()
     i = 0
     while i < len(input):
         memory[i + 0x200] = input[i]
@@ -61,17 +63,86 @@ def draw():
             pygame.draw.rect(surface, black, ((idx % WIDTH) * BLOCK_SIZE, (idx // WIDTH) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
     pygame.display.update()
 
+def read_key_state():
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_1:
+                keys[1] = 1
+            elif event.key == pygame.K_2:
+                keys[2] = 1
+            elif event.key == pygame.K_3:
+                keys[3] = 1
+            elif event.key == pygame.K_4:
+                keys[0xc] = 1
+            elif event.key == pygame.K_q:
+                keys[4] = 1
+            elif event.key == pygame.K_w:
+                keys[5] = 1
+            elif event.key == pygame.K_e:
+                keys[6] = 1
+            elif event.key == pygame.K_r:
+                keys[0xd] = 1
+            elif event.key == pygame.K_a:
+                keys[7] = 1
+            elif event.key == pygame.K_s:
+                keys[8] = 1
+            elif event.key == pygame.K_d:
+                keys[9] = 1
+            elif event.key == pygame.K_f:
+                keys[0xe] = 1
+            elif event.key == pygame.K_z:
+                keys[0xa] = 1
+            elif event.key == pygame.K_x:
+                keys[0] = 1
+            elif event.key == pygame.K_c:
+                keys[0xb] = 1
+            elif event.key == pygame.K_v:
+                keys[0xf] = 1
+
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_1:
+                keys[1] = 0
+            elif event.key == pygame.K_2:
+                keys[2] = 0
+            elif event.key == pygame.K_3:
+                keys[3] = 0
+            elif event.key == pygame.K_4:
+                keys[0xc] = 0
+            elif event.key == pygame.K_q:
+                keys[4] = 0
+            elif event.key == pygame.K_w:
+                keys[5] = 0
+            elif event.key == pygame.K_e:
+                keys[6] = 0
+            elif event.key == pygame.K_r:
+                keys[0xd] = 0
+            elif event.key == pygame.K_a:
+                keys[7] = 0
+            elif event.key == pygame.K_s:
+                keys[8] = 0
+            elif event.key == pygame.K_d:
+                keys[9] = 0
+            elif event.key == pygame.K_f:
+                keys[0xe] = 0
+            elif event.key == pygame.K_z:
+                keys[0xa] = 0
+            elif event.key == pygame.K_x:
+                keys[0] = 0
+            elif event.key == pygame.K_c:
+                keys[0xb] = 0
+            elif event.key == pygame.K_v:
+                keys[0xf] = 0
 
 load_rom()
 pc = 0x200
 while True:
     import time
     draw()
-    time.sleep(.001)
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
+    read_key_state()
+    
 
     op = memory[pc]
     op1 = memory[pc + 1]
@@ -109,7 +180,7 @@ while True:
             continue
         elif opa == 0x3:
             print("Skip next instr if register opb == op1")
-            print(registers)
+            
             if registers.get(opb, 0) == op1:
                 pc += 2
         elif opa == 0x4:
@@ -184,6 +255,8 @@ while True:
                 for ix, v in enumerate(map(int, "{0:08b}".format(memory[I + iy]))):
                     if v:
                         display_idx = 64*(y+iy) + x + ix
+                        if display_idx >= 64 * 32:
+                            continue 
                         existing = display[display_idx]
                         if existing:
                             display[display_idx] = 0
@@ -195,10 +268,13 @@ while True:
             print(opa, op1)
             if op1 == 0x9e:
                 print("9e")
+                if keys.get(opb):
+                    pc += 2
             elif op1 == 0xa1:
                 print("a1: Skips the next instruction if the key stored in VX is not pressed")
-                print(registers[opb])
-
+                
+                if not keys.get(opb):
+                    pc += 2
             else:
                 a+=1
             #a+=1
