@@ -1,6 +1,6 @@
 # https://massung.github.io/CHIP-8/
 from io import TextIOWrapper
-import random
+import random, datetime
 import pygame, sys
 from pygame.locals import *
 
@@ -11,6 +11,7 @@ BLOCK_SIZE = 10
 # set up pygame
 pygame.init()
 
+random.seed(int(datetime.datetime.now().timestamp()))
 
 black = (0, 0, 0)
 red = (255, 0, 0)
@@ -23,7 +24,25 @@ pygame.display.update()
 
 registers = {}
 memory = [0] * 4096
-display = [0] * 64 * 32
+for idx, x in enumerate([0xF0, 0x90, 0x90, 0x90, 0xF0,
+    0x20, 0x60, 0x20, 0x20, 0x70, 
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, 
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, 
+    0x90, 0x90, 0xF0, 0x10, 0x10, 
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, 
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, 
+    0xF0, 0x10, 0x20, 0x40, 0x40, 
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, 
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, 
+    0xF0, 0x90, 0xF0, 0x90, 0x90, 
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, 
+    0xF0, 0x80, 0x80, 0x80, 0xF0, 
+    0xE0, 0x90, 0x90, 0x90, 0xE0, 
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, 
+    0xF0, 0x80, 0xF0, 0x80, 0x80  ]):
+    memory[idx] = x
+
+display = [0] * WIDTH * HEIGHT
 keys = {}
 
 stack = []
@@ -37,18 +56,19 @@ I = 0
 def printh(x, y=None):
     print("\\x{:02x}".format(x), "\\x{:02x}".format(y))
 
-def load_rom():
+def load_rom(name ):
     # input = open('chip8pic.ch8', 'rb').read()
-    input = open('pong.rom', 'rb').read()
+    # input = open('pong.rom', 'rb').read()
     # input = open('c8_test.c8', 'rb').read()
     # input = open('test_opcode.ch8', 'rb').read()
     #input = open('zd.ch8', 'rb').read()
-    #input = open('tetris.rom', 'rb').read()
+    # input = open('tetris.rom', 'rb').read()
     # input = open('invaders.rom', 'rb').read()
     # input = open("breakout.rom", "rb").read()
     # input = open('ibmlogo.ch8', 'rb').read()
     # input = open('ibmlogo.ch8', 'rb').read()
     # input = open('random_number_test.ch8', 'rb').read()
+    input = open(name,  'rb').read()
     i = 0
     while i < len(input):
         memory[i + 0x200] = input[i]
@@ -69,6 +89,7 @@ def read_key_state():
             pygame.quit()
             sys.exit()
         elif event.type == pygame.KEYDOWN:
+            
             if event.key == pygame.K_1:
                 keys[1] = 1
             elif event.key == pygame.K_2:
@@ -84,6 +105,7 @@ def read_key_state():
             elif event.key == pygame.K_e:
                 keys[6] = 1
             elif event.key == pygame.K_r:
+                print('rrr')
                 keys[0xd] = 1
             elif event.key == pygame.K_a:
                 keys[7] = 1
@@ -103,6 +125,7 @@ def read_key_state():
                 keys[0xf] = 1
 
         elif event.type == pygame.KEYUP:
+            print("KOKO2")
             if event.key == pygame.K_1:
                 keys[1] = 0
             elif event.key == pygame.K_2:
@@ -136,14 +159,19 @@ def read_key_state():
             elif event.key == pygame.K_v:
                 keys[0xf] = 0
 
-load_rom()
+load_rom(sys.argv[1])
 pc = 0x200
 while True:
     import time
     draw()
     read_key_state()
-    
-
+    #input("Press Enter to continue...")
+    if delay_timer > 0:
+        delay_timer-=1
+        print("DT ", delay_timer)
+        time.sleep(0.01)
+        # exit(1)
+        continue
     op = memory[pc]
     op1 = memory[pc + 1]
 
@@ -154,12 +182,10 @@ while True:
     op1b = op1 & 0x0F
 
     printh(op, op1)
-    # printh(opa, opb)
-    # printh(op1a, op1b)
 
     if op == 0x0:
         if op1 == 0xe0:
-            print("cls scr")
+            print("CLS")
         elif op1 == 0xee:
             print("return subroutine")
             addr = stack.pop()
@@ -187,8 +213,13 @@ while True:
             print("Skip next instr if register opb != op1")
             if registers.get(opb) != op1:
                 pc += 2
+        elif opa == 0x5:
+            print("Skip next instr if register opb != register op1")
+            if registers.get(opb) == registers.get(op1a):
+                pc += 2
         elif opa == 0x6:
-            print("Set REG {0} to {1}".format(opb, op1))
+            # print("Set REG {0} to {1}".format(opb, op1))
+            print("LD V{0}, {1}".format(opb, op1))
             registers[opb] = op1
         elif opa == 0x7:
             print("Add {0} to REG {1}".format(op1, opb))
@@ -226,22 +257,50 @@ while True:
                 else:
                     registers[0xf] = 0
                 registers[opb] = vx >> 1
-            elif op1b == 0xe:
+            elif op1b == 0x7:
                 vx = registers[opb]
-                if vx & 0x8:
+                vy = registers[op1a]
+                if vy > vx:
+                    registers[0xf] = 1
+                else:
+                    registers[0xf] = 0
+                registers[opb] = (vy - vx)&0xff
+            elif op1b == 0xe:
+                
+                vx = registers[opb]
+                print(vx)
+                if vx & 128:
                     registers[0xf] = 1
                 else:
                     registers[0xf] = 0
                 registers[opb] = (vx << 1)&0xff
+                print(registers[opb])
+                
+
+                # input("A")
+            else:
+                print(op1b)
+                a+=1
+        elif opa == 0x9:
+            print("SNE V{0}, V{1}".format(opb, op1a))
+            if registers.get(opb) != registers.get(op1a):
+                pc += 2
 
         elif opa == 0xA:
             addr = (opb << 8) | op1
-            print("Set I to {0}".format(addr))
+            
+            print("LD i, {0}".format(addr))
             I = addr
+            
+        elif opa == 0xB:
+            addr = (opb << 8) | op1
+            
+            print("JM V0, addr")
+            pc = addr + registers[0]
         elif opa == 0xC:
 
-            print("Set opb to random ")
-            r = random.randint(0, 255)
+            print("RND V{0}, {1}".format(opb, op1))
+            r = random.randint(0, op1)
             registers[opb] = r & op1
 
         elif opa == 0xD:
@@ -250,24 +309,45 @@ while True:
             y = registers[op1a]
             height = op1b
             width = 8
-            print("Draw sprite at {0}, {1} with height {2}".format(x, y, height))
+            erase = 0 
+            print("Draw sprite at {0}, {1} with height {2} from address".format(x, y, height, ))
+            printh(I, 0)
+            
             for iy in range(height):
+
                 for ix, v in enumerate(map(int, "{0:08b}".format(memory[I + iy]))):
+
+                    print(I, iy, v)
                     if v:
-                        display_idx = 64*(y+iy) + x + ix
-                        if display_idx >= 64 * 32:
-                            continue 
+
+                        dx = x+ix
+                        dy = y+iy
+
+                        if dx >= WIDTH:
+                            dx -= WIDTH
+
+                        if dy >= HEIGHT:
+                            dy = HEIGHT
+
+                        display_idx = WIDTH*dy + dx
+                        #if display_idx >= WIDTH * HEIGHT:
+                        #    continue 
+                        
                         existing = display[display_idx]
                         if existing:
                             display[display_idx] = 0
+                            erase = 1
                         else:
                             display[display_idx] = 1
-                            
+
+            if erase:
+                registers[0xf] = 1
 
         elif opa == 0xE:
             print(opa, op1)
             if op1 == 0x9e:
                 print("9e")
+                # exit(1)
                 if keys.get(opb):
                     pc += 2
             elif op1 == 0xa1:
@@ -281,25 +361,63 @@ while True:
         elif opa == 0xF:
             if op1 == 0x33:
                 val = registers[opb]
-                print("BCD, val = ".format(val))
+                print("BCD, v{0} ({1}) ".format(opb, val))
                 h = int(val / 100)
                 t = int((val - 100 * h) / 10)
                 o = val - 100 * h - 10 * t
+                print(val, h, t, o)
                 memory[I] = h
                 memory[I + 1] = t
                 memory[I + 2] = o
+
             elif op1 == 0x55:
                 for i in range(opb + 1):
-                    memory[I] = registers[i]
-                    I += 1
+                    memory[I+i] = registers[i]
+                    
             elif op1 == 0x65:
+                print("LD V{0}, [I]".format(opb))
+                
                 for i in range(opb + 1):
-                    registers[i] = memory[I]
-                    I += 1
+                    registers[i] = memory[I+i]
+                    
+            elif op1 == 0x29:
+                print("LD F, V{0}".format(opb))
+                I = registers[opb] * 5
+            elif op1 == 0x07:
+                print("LD V{0}, DT".format(opb))
+                registers[opb] = delay_timer
+            elif op1 == 0x0a:
+                print("LD V{0}, K".format(opb))
+                z = input("Press Enter to continue...")
+                registers[opb] = int(z)
+            elif op1 == 0x15:
+                print("LD DELAY, V{0} ({1})".format(opb, registers[opb]))
+                
+                delay_timer = registers[opb]
+                print(delay_timer)
+                while(delay_timer>0):
+                    print(delay_timer)
+                    delay_timer-=1
+                    time.sleep(.001)
+                    # print("KKK")
+            elif op1 == 0x18:
+                print("LD ST, V{0}".format(opb))
+                sound_timer = registers[opb]
+                
+            elif op1 == 0x1e:
+                print("ADD I, V{0}".format(opb))
+                I = I + registers[opb]
 
+                
+            else:
+                print(op1)
+                a+=332
+                print("KOKO")
+                break
 
         else:
             print(opa)
+            a+=1
             #break
 
     pc += 2
