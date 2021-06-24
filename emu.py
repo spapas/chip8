@@ -1,21 +1,30 @@
 # https://massung.github.io/CHIP-8/
-
+from io import TextIOWrapper
+import random
 import pygame, sys
 from pygame.locals import *
+
+WIDTH = 64 # 0x00 - 0x3F
+HEIGHT = 32 # 0x00 - 0x1F
+BLOCK_SIZE = 10 
 
 # set up pygame
 pygame.init()
 
 
+black = (0, 0, 0)
 red = (255, 0, 0)
 green = (0, 255, 0)
-surface = pygame.display.set_mode((500, 400))
-surface.set_at((20, 20), green)
+surface = pygame.display.set_mode((640, 320))
+#surface.set_at((20, 20), green)
+#surface.set_at((25, 25), green)
 # pygame.draw.rect(surface, red, (0,0,10,10), 0)
 pygame.display.update()
 
 registers = {}
 memory = [0] * 4096
+display = [0] * 64 * 32
+
 stack = []
 
 delay_timer = 0
@@ -24,20 +33,17 @@ sound_timer = 0
 pc = 0
 I = 0
 
-
 def printh(x, y=None):
     print("\\x{:02x}".format(x), "\\x{:02x}".format(y))
-
-
-print(input)
-
 
 def load_rom():
     # input = open('chip8pic.ch8', 'rb').read()
     # input = open('pong.rom', 'rb').read()
-    input = open('zd.ch8', 'rb').read()
+    # input = open('c8_test.c8', 'rb').read()
+    #input = open('test_opcode.ch8', 'rb').read()
+    #input = open('zd.ch8', 'rb').read()
     #input = open('tetris.rom', 'rb').read()
-    # input = open('invaders.rom', 'rb').read()
+    input = open('invaders.rom', 'rb').read()
     # input = open("breakout.rom", "rb").read()
     # input = open('ibmlogo.ch8', 'rb').read()
     # input = open('ibmlogo.ch8', 'rb').read()
@@ -47,13 +53,21 @@ def load_rom():
         i += 1
 
 
-def set_pixel(x, y):
-    pass
+def draw():
+    for idx, l in enumerate(display):
+        if l:
+            pygame.draw.rect(surface, green, ((idx % WIDTH) * BLOCK_SIZE, (idx // WIDTH) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+        else:
+            pygame.draw.rect(surface, black, ((idx % WIDTH) * BLOCK_SIZE, (idx // WIDTH) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+    pygame.display.update()
 
 
 load_rom()
 pc = 0x200
 while True:
+    import time
+    draw()
+    time.sleep(.001)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -100,7 +114,7 @@ while True:
                 pc += 2
         elif opa == 0x4:
             print("Skip next instr if register opb != op1")
-            if registers[opb] != op1:
+            if registers.get(opb) != op1:
                 pc += 2
         elif opa == 0x6:
             print("Set REG {0} to {1}".format(opb, op1))
@@ -110,14 +124,50 @@ while True:
             registers[opb] = (registers[opb] + op1) & 0xFF
         elif opa == 0x8:
             print("Various arithmetic commands... {0}, {1}, {2}".format(opb, op1a, op1b))
-            
+            if op1b == 0x0:
+                registers[opb] = registers[op1a]
+            elif op1b == 0x1:
+                registers[opb] = registers[opb] | registers[op1a]
+            elif op1b == 0x2:
+                registers[opb] = registers[opb] & registers[op1a]
+            elif op1b == 0x3:
+                registers[opb] = registers[opb] ^ registers[op1a]
+            elif op1b == 0x4:
+                res = registers[opb] + registers[op1a]
+                if res > 255:
+                    res = res & 0xff
+                    registers[0xf] = 1
+                else:
+                    registers[0xf] = 0
+                registers[opb] = res
+            elif op1b == 0x5:
+                vx = registers[opb]
+                vy = registers[op1a]
+                if vx > vy:
+                    registers[0xf] = 1
+                else:
+                    registers[0xf] = 0
+                registers[opb] = (vx - vy)&0xff
+            elif op1b == 0x6:
+                vx = registers[opb]
+                if vx & 0x1:
+                    registers[0xf] = 1
+                else:
+                    registers[0xf] = 0
+                registers[opb] = vx >> 1
+            elif op1b == 0xe:
+                vx = registers[opb]
+                if vx & 0x8:
+                    registers[0xf] = 1
+                else:
+                    registers[0xf] = 0
+                registers[opb] = (vx << 1)&0xff
 
         elif opa == 0xA:
             addr = (opb << 8) | op1
             print("Set I to {0}".format(addr))
             I = addr
         elif opa == 0xC:
-            import random
 
             print("Set opb to random ")
             r = random.randint(0, 255)
@@ -130,13 +180,17 @@ while True:
             height = op1b
             width = 8
             print("Draw sprite at {0}, {1} with height {2}".format(x, y, height))
-            for i in range(height):
-                printh(memory[I + i], 0)
-                for idx, v in enumerate(map(int, "{0:08b}".format(memory[I + i]))):
+            for iy in range(height):
+                for ix, v in enumerate(map(int, "{0:08b}".format(memory[I + iy]))):
                     if v:
-                        print(x + idx, y + i)
-                        surface.set_at((x + idx, y + i), green)
-                        pygame.display.update()
+                        display_idx = 64*(y+iy) + x + ix
+                        existing = display[display_idx]
+                        if existing:
+                            display[display_idx] = 0
+                        else:
+                            display[display_idx] = 1
+                            
+
         elif opa == 0xE:
             print(opa, op1)
             if op1 == 0x9e:
@@ -158,13 +212,19 @@ while True:
                 memory[I] = h
                 memory[I + 1] = t
                 memory[I + 2] = o
+            elif op1 == 0x55:
+                for i in range(opb + 1):
+                    memory[I] = registers[i]
+                    I += 1
             elif op1 == 0x65:
                 for i in range(opb + 1):
                     registers[i] = memory[I]
                     I += 1
 
+
         else:
             print(opa)
-            break
+            #break
 
     pc += 2
+
